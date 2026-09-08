@@ -531,6 +531,15 @@ export function ChatSettingsPanel({
     const [mutePickerKey, setMutePickerKey] = useState<string | null>(null);
     const [showInvitePicker, setShowInvitePicker] = useState(false);
     const [allowAdminOnUser, setAllowAdminOnUser] = useState(session.allowAdminActionsOnUser === true);
+    // ── Group preset (mask) override ──
+    const [showGroupPresetPicker, setShowGroupPresetPicker] = useState(false);
+    const allPresets = useMemo(() => loadPresets(), []);
+    const [groupPresetId, setGroupPresetId] = useState<string | undefined>(session.groupPresetId);
+    const groupPresetName = useMemo(() => {
+        if (!groupPresetId) return "跟随全局";
+        const found = allPresets.find(p => p.id === groupPresetId);
+        return found ? found.name : "跟随全局";
+    }, [groupPresetId, allPresets]);
     if (session.isGroup) pruneExpiredGroupMutes(session);
     const userName = userIdentity?.name || "用户";
     const ownerKey = session.isGroup ? getGroupOwnerKey(session) : "";
@@ -927,6 +936,23 @@ export function ChatSettingsPanel({
                                 </div>
                             </button>
                         )}
+                    </div>
+                )}
+
+                {/* Group preset (mask) override */}
+                {session.isGroup && (
+                    <div className="menu-group">
+                        <button className="menu-item" onClick={() => setShowGroupPresetPicker(true)}>
+                            <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.preset} />
+                            <div className="menu-label-group">
+                                <span className="menu-label">群聊面具</span>
+                                <span className="menu-desc">为本群指定面具（预设），不影响其他群聊</span>
+                            </div>
+                            <div className="menu-right">
+                                <span className="menu-desc mr-1">{groupPresetName}</span>
+                                <ChevronRight size={16} />
+                            </div>
+                        </button>
                     </div>
                 )}
 
@@ -1748,6 +1774,51 @@ export function ChatSettingsPanel({
                                 保存并启用
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Group preset (mask) picker dialog */}
+            {showGroupPresetPicker && (
+                <div className="absolute inset-0 z-[120] flex flex-col" style={{ background: "var(--c-page-body-bg)" }}>
+                    <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--c-border)" }}>
+                        <button type="button" className="ts-14 text-[var(--c-primary)]" onClick={() => setShowGroupPresetPicker(false)}>取消</button>
+                        <span className="ts-14 font-semibold">选择群聊面具</span>
+                        <span className="ts-14" style={{ visibility: "hidden" }}>取消</span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-1">
+                        <button
+                            className="menu-item rounded-xl"
+                            style={{ background: !groupPresetId ? "color-mix(in srgb, var(--c-primary) 12%, transparent)" : undefined }}
+                            onClick={() => {
+                                setGroupPresetId(undefined);
+                                updateSession({ groupPresetId: undefined });
+                                setShowGroupPresetPicker(false);
+                            }}
+                        >
+                            <div className="menu-label-group">
+                                <span className="menu-label">跟随全局</span>
+                                <span className="menu-desc">使用绑定设置中的群聊默认面具</span>
+                            </div>
+                            {!groupPresetId && <span className="text-[var(--c-primary)] ts-14">✓</span>}
+                        </button>
+                        {allPresets.map(p => (
+                            <button
+                                key={p.id}
+                                className="menu-item rounded-xl"
+                                style={{ background: groupPresetId === p.id ? "color-mix(in srgb, var(--c-primary) 12%, transparent)" : undefined }}
+                                onClick={() => {
+                                    setGroupPresetId(p.id);
+                                    updateSession({ groupPresetId: p.id });
+                                    setShowGroupPresetPicker(false);
+                                }}
+                            >
+                                <div className="menu-label-group">
+                                    <span className="menu-label">{p.name}{p.builtIn ? " (默认)" : ""}</span>
+                                </div>
+                                {groupPresetId === p.id && <span className="text-[var(--c-primary)] ts-14">✓</span>}
+                            </button>
+                        ))}
                     </div>
                 </div>
             )}

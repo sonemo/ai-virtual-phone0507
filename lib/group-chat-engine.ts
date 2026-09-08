@@ -307,7 +307,9 @@ async function buildGroupChatPromptMessages(
     if (!config) throw new ChatEngineError("API Configuration not found for group chat.");
 
     const presets = loadPresets();
-    let preset = activeSlot.presetId ? presets.find(p => p.id === activeSlot.presetId) || null : null;
+    // 优先使用群聊会话级面具覆盖，其次全局绑定，最后内置预设
+    const effectivePresetId = session.groupPresetId || activeSlot.presetId;
+    let preset = effectivePresetId ? presets.find(p => p.id === effectivePresetId) || null : null;
     if (!preset) preset = presets.find(p => p.builtIn) ?? null;
     const promptProfile = options?.promptProfile ?? undefined;
     if (preset && promptProfile) {
