@@ -38,7 +38,7 @@ import { triggerDeleteFriendReaction } from "@/lib/friend-request-engine";
 import { loadCharacters } from "@/lib/character-storage";
 import { isAgentComputerConfigured } from "@/lib/agent-computer";
 import { CharacterComputerPage } from "./character-computer-page";
-import { resolveUserIdentity, loadBindingConfig, loadPresets, resolveBinding } from "@/lib/settings-storage";
+import { resolveUserIdentity, loadBindingConfig, loadPresets, resolveBinding, loadUserIdentities } from "@/lib/settings-storage";
 import { getStatusRegionConfig, saveStatusRegionConfig, presetSupportsStatusRegion, isCustomStatusRegionActive, STATUS_REGION_SCHEME_TARGET, STATUS_REGION_UPDATED_EVENT, type StatusRegionConfig } from "@/lib/chat-status-region";
 import { downloadFile } from "@/lib/download-utils";
 import { getSchemes, saveScheme, deleteScheme, type CSSScheme } from "@/lib/css-scheme-storage";
@@ -531,15 +531,15 @@ export function ChatSettingsPanel({
     const [mutePickerKey, setMutePickerKey] = useState<string | null>(null);
     const [showInvitePicker, setShowInvitePicker] = useState(false);
     const [allowAdminOnUser, setAllowAdminOnUser] = useState(session.allowAdminActionsOnUser === true);
-    // ── Group preset (mask) override ──
-    const [showGroupPresetPicker, setShowGroupPresetPicker] = useState(false);
-    const allPresets = useMemo(() => loadPresets(), []);
-    const [groupPresetId, setGroupPresetId] = useState<string | undefined>(session.groupPresetId);
-    const groupPresetName = useMemo(() => {
-        if (!groupPresetId) return "跟随全局";
-        const found = allPresets.find(p => p.id === groupPresetId);
+    // ── Group user identity (mask) override ──
+    const [showGroupIdentityPicker, setShowGroupIdentityPicker] = useState(false);
+    const allIdentities = useMemo(() => loadUserIdentities(), []);
+    const [groupUserIdentityId, setGroupUserIdentityId] = useState<string | undefined>(session.groupUserIdentityId);
+    const groupIdentityName = useMemo(() => {
+        if (!groupUserIdentityId) return "跟随全局";
+        const found = allIdentities.find(i => i.id === groupUserIdentityId);
         return found ? found.name : "跟随全局";
-    }, [groupPresetId, allPresets]);
+    }, [groupUserIdentityId, allIdentities]);
     if (session.isGroup) pruneExpiredGroupMutes(session);
     const userName = userIdentity?.name || "用户";
     const ownerKey = session.isGroup ? getGroupOwnerKey(session) : "";
@@ -939,17 +939,17 @@ export function ChatSettingsPanel({
                     </div>
                 )}
 
-                {/* Group preset (mask) override */}
+                {/* Group user identity (mask) override */}
                 {session.isGroup && (
                     <div className="menu-group">
-                        <button className="menu-item" onClick={() => setShowGroupPresetPicker(true)}>
-                            <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.preset} />
+                        <button className="menu-item" onClick={() => setShowGroupIdentityPicker(true)}>
+                            <ChatInfoIcon icon={Users} color={BINDING_ACCENTS.preset} />
                             <div className="menu-label-group">
                                 <span className="menu-label">群聊面具</span>
-                                <span className="menu-desc">为本群指定面具（预设），不影响其他群聊</span>
+                                <span className="menu-desc">为本群指定用户身份，不影响其他群聊</span>
                             </div>
                             <div className="menu-right">
-                                <span className="menu-desc mr-1">{groupPresetName}</span>
+                                <span className="menu-desc mr-1">{groupIdentityName}</span>
                                 <ChevronRight size={16} />
                             </div>
                         </button>
@@ -1778,47 +1778,62 @@ export function ChatSettingsPanel({
                 </div>
             )}
 
-            {/* Group preset (mask) picker dialog */}
-            {showGroupPresetPicker && (
+            {/* Group user identity (mask) picker dialog */}
+            {showGroupIdentityPicker && (
                 <div className="absolute inset-0 z-[120] flex flex-col" style={{ background: "var(--c-page-body-bg)" }}>
                     <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--c-border)" }}>
-                        <button type="button" className="ts-14 text-[var(--c-primary)]" onClick={() => setShowGroupPresetPicker(false)}>取消</button>
+                        <button type="button" className="ts-14 text-[var(--c-primary)]" onClick={() => setShowGroupIdentityPicker(false)}>取消</button>
                         <span className="ts-14 font-semibold">选择群聊面具</span>
                         <span className="ts-14" style={{ visibility: "hidden" }}>取消</span>
                     </div>
                     <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-1">
                         <button
                             className="menu-item rounded-xl"
-                            style={{ background: !groupPresetId ? "color-mix(in srgb, var(--c-primary) 12%, transparent)" : undefined }}
+                            style={{ background: !groupUserIdentityId ? "color-mix(in srgb, var(--c-primary) 12%, transparent)" : undefined }}
                             onClick={() => {
-                                setGroupPresetId(undefined);
-                                updateSession({ groupPresetId: undefined });
-                                setShowGroupPresetPicker(false);
+                                setGroupUserIdentityId(undefined);
+                                updateSession({ groupUserIdentityId: undefined });
+                                setShowGroupIdentityPicker(false);
                             }}
                         >
                             <div className="menu-label-group">
                                 <span className="menu-label">跟随全局</span>
-                                <span className="menu-desc">使用绑定设置中的群聊默认面具</span>
+                                <span className="menu-desc">使用绑定设置中的群聊默认用户身份</span>
                             </div>
-                            {!groupPresetId && <span className="text-[var(--c-primary)] ts-14">✓</span>}
+                            {!groupUserIdentityId && <span className="text-[var(--c-primary)] ts-14">✓</span>}
                         </button>
-                        {allPresets.map(p => (
+                        {allIdentities.map(identity => (
                             <button
-                                key={p.id}
+                                key={identity.id}
                                 className="menu-item rounded-xl"
-                                style={{ background: groupPresetId === p.id ? "color-mix(in srgb, var(--c-primary) 12%, transparent)" : undefined }}
+                                style={{ background: groupUserIdentityId === identity.id ? "color-mix(in srgb, var(--c-primary) 12%, transparent)" : undefined }}
                                 onClick={() => {
-                                    setGroupPresetId(p.id);
-                                    updateSession({ groupPresetId: p.id });
-                                    setShowGroupPresetPicker(false);
+                                    setGroupUserIdentityId(identity.id);
+                                    updateSession({ groupUserIdentityId: identity.id });
+                                    setShowGroupIdentityPicker(false);
                                 }}
                             >
-                                <div className="menu-label-group">
-                                    <span className="menu-label">{p.name}{p.builtIn ? " (默认)" : ""}</span>
+                                <div className="flex items-center gap-2">
+                                    {identity.avatarUrl ? (
+                                        <img src={identity.avatarUrl} className="w-[28px] h-[28px] rounded-full object-cover shrink-0" alt="" />
+                                    ) : (
+                                        <div className="w-[28px] h-[28px] rounded-full bg-[var(--c-input)] flex items-center justify-center shrink-0">
+                                            <span className="ts-12">{identity.name[0]}</span>
+                                        </div>
+                                    )}
+                                    <div className="menu-label-group">
+                                        <span className="menu-label">{identity.name}</span>
+                                        {identity.bio && <span className="menu-desc">{identity.bio}</span>}
+                                    </div>
                                 </div>
-                                {groupPresetId === p.id && <span className="text-[var(--c-primary)] ts-14">✓</span>}
+                                {groupUserIdentityId === identity.id && <span className="text-[var(--c-primary)] ts-14">✓</span>}
                             </button>
                         ))}
+                        {allIdentities.length === 0 && (
+                            <div className="text-center py-8 opacity-50 ts-13">
+                                还没有创建用户身份，请先到「设置 → 用户身份」创建
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
